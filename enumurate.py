@@ -73,13 +73,25 @@ def canonical_funcs(funcs):
     return best
 
 
+def get_formula(ops):
+    if not ops:
+        return '()'
+    formulas = []
+    for i in range(len(ops)):
+        left, right, op = ops[i]
+        left = str(left) if left <= N else '(' + formulas[left - N - 1] + ')'
+        right = str(right) if right <= N else '(' + formulas[right - N - 1] + ')'
+        formulas.append(left + op + right)
+    return formulas[-1]
+
+
 all_dag_set = set()
 all_dag_set.add(canonical_funcs(v)[0])
 all_dag_list = [empty_dag]
 func_dag_map = {}
 for func in v:
     func_dag_map[canonical_func[func][0]] = []
-
+'''
 for i in range(MAX_DAGS):
     if len(func_dag_map) >= len(set_canonical_funcs) or i >= len(all_dag_list):
         break
@@ -119,30 +131,39 @@ for i in range(MAX_DAGS):
         check_new_op(funcs[j] & funcs[k], (j, k, '&'))
         check_new_op(funcs[j] & (MAX-funcs[k]), (j, k, '>'))
         check_new_op((MAX-funcs[j]) & funcs[k], (j, k, '<'))
-
-complexity_counts = {}
-for func in func_dag_map:
-    dag = func_dag_map[func]
-    if len(dag) not in complexity_counts:
-        complexity_counts[len(dag)] = 0
-    complexity_counts[len(dag)] += 1
-
-print (complexity_counts)
-
+'''
 import pickle
+from random import randrange
 
-with open('func_dict_4.pickle', 'wb') as handle:
-    pickle.dump(func_dag_map, handle, protocol=pickle.HIGHEST_PROTOCOL)
+#with open('func_dict.pickle', 'wb') as handle:
+#    pickle.dump(func_dag_map, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 with open('func_dict_4.pickle', 'rb') as handle:
     func_dict = pickle.load(handle)
+
+    complexity_counts = {}
+    for func in func_dict:
+        dag = func_dict[func]
+        if len(dag) not in complexity_counts:
+            complexity_counts[len(dag)] = 0
+        complexity_counts[len(dag)] += 1
+
+    print(complexity_counts)
+    '''
     tests = [
         #v[1] ^ v[2] ^ v[3],
         #(v[1] ^ v[2]) & v[3],
         (v[2] ^ v[4]) & (v[1] ^ v[3]),
         v[1] ^ v[2] ^ v[3] ^ v[4],
         (v[2] ^ v[3]) & (v[1] ^ v[4]),
+        int('100100100100100', 2),
+
     ]
     for test in tests:
         canonical_test = canonical_func[test][0]
         print (bin(canonical_test, (1<<N)-1), func_dict[canonical_test])
+    '''
+    for i in range(20):
+        test = randrange(NUM_FN)
+        canonical_test = canonical_func[test][0]
+        print(bin(test, (1 << N) - 1), bin(canonical_test, (1 << N) - 1), get_formula(func_dict[canonical_test]))
