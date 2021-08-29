@@ -3,54 +3,59 @@ import random
 
 model = cp_model.CpModel()
 
-input_bits = 6
-num_gates = 13
+# majority function: (5,3), (7,6), ()
+
+input_bits = 5
+num_ins = 10
+memory_len = 10
 output_bits = 1
 function_table = []
 
 for idx in range(1 << input_bits):
     in_bits = tuple([1 if idx & (1 << (input_bits-i-1)) else 0 for i in range(input_bits)])
     #out_bits = (random.getrandbits(1) if idx != 0 else 0,)
-    out_bits = (1 if sum(in_bits) == input_bits//2 else 0,)
+    #out_bits = (1 if sum(in_bits) == input_bits//2 else 0,)
+    #out_bits = (1 if sum(in_bits) % 2 == 1 else 0,)
+    #out_bits = (0 if idx % 3 == 0 else 1,)
+    out_bits = (1 if sum(in_bits) > input_bits // 2 else 0,)
     function_table.append((in_bits, out_bits))
 
 print (function_table)
 
-gates = []
+instructions = []
 
-for gate_id in range(num_gates):
-    left_wire = model.NewIntVar(0, input_bits - 2 + gate_id, 'gate_left_' + str(gate_id))
-    right_wire = model.NewIntVar(1, input_bits - 1 + gate_id, 'gate_right_' + str(gate_id))
-    model.Add(left_wire < right_wire)
-    gate_op = model.NewIntVar(0, 4, 'gate_op_' + str(gate_id))
-    gates.append((gate_op, left_wire, right_wire))
+for ins_id in range(num_ins):
+    working_mem = min(memory_len - 1, input_bits + ins_id - 1)
+    operand = model.NewIntVar(0, working_mem - 1, 'operand_' + str(ins_id))
+    operator = model.NewIntVar(0, 5, 'operator_' + str(ins_id))
+    instructions.append((operand, operator))
 
 all_bits_list = []
 
 
 for calc_id in range(len(function_table)):
     in_bits, out_bits = function_table[calc_id]
-    all_bits = [model.NewBoolVar('calc_bit_' + str(calc_id) + '_' + str(i)) for i in range(input_bits + num_gates)]
+    all_bits = [model.NewBoolVar('result_' + str(calc_id) + '_' + str(i)) for i in range(input_bits + num_ins)]
     for i in range(len(in_bits)):
         model.Add(all_bits[i] == in_bits[i])
     for i in range(len(out_bits)):
         model.Add(all_bits[-i-1] == out_bits[-i-1])
-    for gate_id in range(num_gates):
-        gate_op, left_wire, right_wire = gates[gate_id]
-        left_bit = model.NewBoolVar('calc_left_' + str(calc_id) + '_' + str(gate_id))
-        right_bit = model.NewBoolVar('calc_right_' + str(calc_id) + '_' + str(gate_id))
-        all_bits.append(left_bit)
-        all_bits.append(right_bit)
-        for wire_id in range(0, input_bits - 1 + gate_id):
-            model.AddForbiddenAssignments([left_wire, left_bit, all_bits[wire_id]], [(wire_id, 0, 1), (wire_id, 1, 0)])
-        for wire_id in range(1, input_bits + gate_id):
-            model.AddForbiddenAssignments([right_wire, right_bit, all_bits[wire_id]], [(wire_id, 0, 1), (wire_id, 1, 0)])
-        model.AddAllowedAssignments([gate_op, left_bit, right_bit, all_bits[input_bits + gate_id]],
+    for ins_id in range(num_ins):
+        operand, operator = instructions[ins_id]
+        all_bit_id = input_bits + ins_id
+        operand_bit = model.NewBoolVar('operand_' + str(calc_id) + '_' + str(ins_id))
+        all_bits.append(operand_bit)
+        for operand_id in range(0, memory_len-1):
+            if all_bit_id-2-operand_id < 0:
+                continue
+            model.AddForbiddenAssignments([operand, operand_bit, all_bits[all_bit_id-2-operand_id]], [(operand_id, 0, 1), (operand_id, 1, 0)])
+        model.AddAllowedAssignments([operator, all_bits[all_bit_id-1], operand_bit, all_bits[all_bit_id]],
                                     [(0, 0, 0, 0), (0, 0, 1, 1), (0, 1, 0, 1), (0, 1, 1, 0),
-                                     (1, 0, 0, 0), (1, 0, 1, 1), (1, 1, 0, 1), (1, 1, 1, 1),
-                                     (2, 0, 0, 0), (2, 0, 1, 0), (2, 1, 0, 0), (2, 1, 1, 1),
-                                     (3, 0, 0, 0), (3, 0, 1, 0), (3, 1, 0, 1), (3, 1, 1, 0),
-                                     (4, 0, 0, 0), (4, 0, 1, 1), (4, 1, 0, 0), (4, 1, 1, 0)])
+                                     (1, 0, 0, 0), (1, 0, 1, 1), (1, 1, 0, 0), (1, 1, 1, 1),
+                                     (2, 0, 0, 0), (2, 0, 1, 1), (2, 1, 0, 1), (2, 1, 1, 1),
+                                     (3, 0, 0, 0), (3, 0, 1, 0), (3, 1, 0, 0), (3, 1, 1, 1),
+                                     (4, 0, 0, 0), (4, 0, 1, 0), (4, 1, 0, 1), (4, 1, 1, 0),
+                                     (5, 0, 0, 0), (5, 0, 1, 1), (5, 1, 0, 0), (5, 1, 1, 0)])
     all_bits_list.append(all_bits)
 
 solver = cp_model.CpSolver()
@@ -61,14 +66,27 @@ def print_var(var):
     print (var.Name(), solver.Value(var))
 
 
-if status == cp_model.OPTIMAL:
-    for gate_id in range(num_gates):
-        gate_op, left_wire, right_wire = gates[gate_id]
-        print_var(gate_op)
-        print_var(left_wire)
-        print_var(right_wire)
+operator_dict = {0: '^', 1: '|', 2: '&', 3: '>', 4: '<', 5: '*'}
 
-print (solver.WallTime())
+if status == cp_model.OPTIMAL:
+    exprs = []
+    for inp in range(input_bits):
+        exprs.append(str(inp))
+        print('\t'.join([str(inp), '', '', exprs[-1]]))
+    for ins_id in range(num_ins):
+        operand, operator = instructions[ins_id]
+        all_bit_id = input_bits + ins_id
+        operand_id = all_bit_id - 2 - solver.Value(operand)
+        operator_str = operator_dict[solver.Value(operator)]
+        if operator_str == '*':
+            exprs.append(exprs[operand_id])
+        else:
+            left = exprs[-1] if len(exprs[-1]) == 1 else '(' + exprs[-1] + ')'
+            right = exprs[operand_id] if len(exprs[operand_id]) == 1 else '(' + exprs[operand_id] + ')'
+            exprs.append(left + operator_str + right)
+        print('\t'.join([str(all_bit_id), operator_str, str(operand_id), exprs[-1]]))
+
+print(solver.WallTime())
 
 '''
 for all_bits in all_bits_list:
