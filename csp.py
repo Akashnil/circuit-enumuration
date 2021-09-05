@@ -3,10 +3,10 @@ import random
 
 model = cp_model.CpModel()
 
-# 2mod3: 10, 15,
+# 2mod3: 10, 15, 19
 
-input_bits = 6
-num_ins = 15
+input_bits = 8
+num_ins = 23
 memory_len = num_ins+input_bits
 output_bits = 1
 function_table = []
@@ -16,7 +16,7 @@ MAX = (1 << (1 << input_bits)) - 1
 for idx in range(1 << input_bits):
     in_bits = tuple([1 if idx & (1 << (input_bits-i-1)) else 0 for i in range(input_bits)])
     #out_bits = (random.getrandbits(1) if idx != 0 else 0,)
-    #out_bits = (1 if sum(in_bits) == input_bits//2 else 0,)
+    #out_bits = (1 if sum(in_bits) == 1 else 0,)
     #out_bits = (1 if sum(in_bits) % 2 == 1 else 0,)
     out_bits = (1 if idx % 3 == 2 else 0,)
     #out_bits = (1 if sum(in_bits) > input_bits // 2 else 0,)
@@ -74,7 +74,7 @@ if status == cp_model.OPTIMAL:
     for i in range(input_bits):
         val = 0
         for j in range(1 << input_bits):
-            if not (j >> i) & 1:
+            if not (j >> (input_bits - i - 1)) & 1:
                 val |= (1 << j)
         exprs.append(val)
         print('\t'.join([str(i), '', '', bin(exprs[-1])[2:].zfill(1 << input_bits)]))
